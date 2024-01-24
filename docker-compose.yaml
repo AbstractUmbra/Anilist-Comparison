@@ -1,0 +1,12 @@
+services:
+  anilistcmp:
+    ports:
+      - "8280:8080"
+    container_name: "anilistcmp"
+    build: .
+    networks:
+      main:
+
+networks:
+  main:
+    external: true

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import asyncio
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import aiohttp
 from fastapi import FastAPI, Request
@@ -81,18 +80,14 @@ def format_entries_as_table(entries: dict[int, InnerMediaEntry]) -> str:
     return TABLE.format(body="\n".join(rows))
 
 
-async def _query(session: aiohttp.ClientSession, json_data: dict[str, Any]) -> AnilistResponse:
-    resp = await session.post("https://graphql.anilist.co", json=json_data)
-    return await resp.json()
-
-
 async def _fetch_user_entries(*usernames: str) -> AnilistResponse:
     username1, username2 = usernames
 
-    async with aiohttp.ClientSession() as session, asyncio.TaskGroup() as group:
-        return await group.create_task(
-            _query(session, {"query": QUERY, "variables": {"username1": username1, "username2": username2}})
-        )
+    async with aiohttp.ClientSession() as session, session.post(
+        "https://graphql.anilist.co",
+        json={"query": QUERY, "variables": {"username1": username1, "username2": username2}},
+    ) as resp:
+        return await resp.json()
 
 
 def _restructure_entries(entries: list[MediaEntry]) -> dict[int, InnerMediaEntry]:

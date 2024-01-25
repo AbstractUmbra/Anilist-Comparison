@@ -28,7 +28,8 @@ class MediaListCollection(TypedDict):
 
 
 class MediaListCollectionResponse(TypedDict):
-    MediaListCollection: MediaListCollection
+    user1: MediaListCollection
+    user2: MediaListCollection
 
 
 class AnilistResponse(TypedDict):

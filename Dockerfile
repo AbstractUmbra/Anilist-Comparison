@@ -1,5 +1,9 @@
 FROM python:3.11-slim
 
+LABEL org.opencontainers.image.source=https://github.com/abstractumbra/anilistcmp
+LABEL org.opencontainers.image.description="Anilist 'planning' Comparison tool"
+LABEL org.opencontainers.image.licenses="MPL-2.0"
+
 ENV PYTHONUNBUFFERED=1 \
     # prevents python creating .pyc files
     PYTHONDONTWRITEBYTECODE=1 \
@@ -26,8 +30,8 @@ ENV PYTHONUNBUFFERED=1 \
 
 ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 
-RUN apt-get update \
-    && apt-get install --no-install-recommends -y \
+RUN apt-get update -y \
+    && apt-get install --no-install-recommends --no-install-suggests -y \
     git \
     # deps for installing poetry
     curl \

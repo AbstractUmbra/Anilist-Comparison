@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import Literal, TypedDict
 
 
 class LocalizedTitle(TypedDict):
@@ -34,3 +34,24 @@ class MediaListCollectionResponse(TypedDict):
 
 class AnilistResponse(TypedDict):
     data: MediaListCollectionResponse
+
+
+class AnilistErrorLocation(TypedDict):
+    line: int
+    column: int
+
+
+class AnilistError(TypedDict):
+    message: str
+    status: int
+    locations: list[AnilistErrorLocation]
+
+
+class UserEntryError(TypedDict):
+    user1: Literal[None]
+    user2: Literal[None]
+
+
+class AnilistErrorResponse(TypedDict):
+    errors: list[AnilistError]
+    data: UserEntryError

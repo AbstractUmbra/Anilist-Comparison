@@ -44,7 +44,20 @@ query ($username1: String, $username2: String) {
         }
     }
 }
+"""
 
+OPENGRAPH_HEAD = """
+<!DOCTYPE html>
+<html prefix="og: https://ogp.me/ns#">
+<head>
+    <meta charset="UTF-8" />
+    <title>Hi</title>
+    <meta property="og:title" content="{user1} and {user2}'s mutual 'Planning' anilist entries." />
+    <meta property="og:description" content="They both currently have {mutual} mutual entries." />
+    <meta property="og:locale" content="en_GB" />
+    <meta property="og:type" content="website" />
+</head>
+</html>
 """
 
 TABLE = """
@@ -121,6 +134,7 @@ async def get_matches(request: Request, user1: str, user2: str) -> Response:
     if not matching_items:
         return Response("No planning anime in common :(", status_code=405, media_type="text/plain")
 
+    head = OPENGRAPH_HEAD.format(user1=user1, user2=user2, mutual=len(matching_items))
     formatted = format_entries_as_table(matching_items)
 
-    return Response(formatted, media_type="text/html")
+    return Response(head + "\n" + formatted, media_type="text/html")

@@ -127,7 +127,7 @@ async def index() -> Response:
 
 @app.get("/{user1}/{user2}")
 async def get_matches(request: Request, user1: str, user2: str) -> Response:
-    data = await _fetch_user_entries(user1, user2)
+    data = await _fetch_user_entries(user1.casefold(), user2.casefold())
 
     matching_items = _get_common_planning(data)
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from enum import Enum
 from typing import TYPE_CHECKING
 
 import aiohttp
@@ -12,8 +13,8 @@ if TYPE_CHECKING:
 app = FastAPI(debug=False, title="Welcome!", version="0.0.1", openapi_url=None, redoc_url=None, docs_url=None)
 
 QUERY = """
-query ($username1: String, $username2: String) {
-    user1: MediaListCollection(userName: $username1, status: PLANNING, type: ANIME) {
+query ($username1: String, $username2: String, $status: MediaListStatus) {
+    user1: MediaListCollection(userName: $username1, status: $status, type: ANIME) {
         lists {
             entries {
                 media {
@@ -28,7 +29,7 @@ query ($username1: String, $username2: String) {
             }
         }
     }
-    user2: MediaListCollection(userName: $username2, status: PLANNING, type: ANIME) {
+    user2: MediaListCollection(userName: $username2, status: $status, type: ANIME) {
         lists {
             entries {
                 media {
@@ -52,7 +53,7 @@ OPENGRAPH_HEAD = """
 <head>
     <meta charset="UTF-8" />
     <title>Hi</title>
-    <meta property="og:title" content="{user1} and {user2}'s mutual 'Planning' anilist entries." />
+    <meta property="og:title" content="{user1} and {user2}'s mutual '{status}' anilist entries." />
     <meta property="og:description" content="They both currently have {mutual} mutual entries." />
     <meta property="og:locale" content="en_GB" />
     <meta property="og:type" content="website" />
@@ -94,17 +95,26 @@ class NoPlanningData(ValueError):
         super().__init__(*args)
 
 
+class Status(Enum):
+    planning = "PLANNING"
+    current = "CURRENT"
+    completed = "COMPLETED"
+    dropped = "DROPPED"
+    paused = "PAUSED"
+    repeating = "REPEATING"
+
+
 def format_entries_as_table(entries: dict[int, InnerMediaEntry]) -> str:
     rows = [ROW.format_map(entry) for entry in entries.values()]
     return TABLE.format(body="\n".join(rows))
 
 
-async def _fetch_user_entries(*usernames: str) -> AnilistResponse | AnilistErrorResponse:
+async def _fetch_user_entries(*usernames: str, status: Status) -> AnilistResponse | AnilistErrorResponse:
     username1, username2 = usernames
 
     async with aiohttp.ClientSession() as session, session.post(
         "https://graphql.anilist.co",
-        json={"query": QUERY, "variables": {"username1": username1, "username2": username2}},
+        json={"query": QUERY, "variables": {"username1": username1, "username2": username2, "status": status.value}},
     ) as resp:
         return await resp.json()
 
@@ -150,11 +160,17 @@ async def index() -> Response:
 
 
 @app.get("/{user1}/{user2}")
-async def get_matches(request: Request, user1: str, user2: str) -> Response:
+async def get_matches(request: Request, user1: str, user2: str, status: str = "PLANNING") -> Response:
     if user1.casefold() == user2.casefold():
         return Response("Haha, you're really funny.", media_type="text/plain")
 
-    data = await _fetch_user_entries(user1.casefold(), user2.casefold())
+    try:
+        selected_status = Status[status.casefold()]
+    except KeyError:
+        _statuses = "\n".join(str(item) for item in Status)
+        return Response(f"Sorry, your chosen status of {status} is not valid. Please choose from:-{_statuses}")
+
+    data = await _fetch_user_entries(user1.casefold(), user2.casefold(), status=selected_status)
 
     if errors := data.get("errors"):
         errored_users = _handle_errors(errors, user1, user2)
@@ -166,12 +182,14 @@ async def get_matches(request: Request, user1: str, user2: str) -> Response:
         matching_items = _get_common_planning(data)  # type: ignore # the type is resolved above.
     except NoPlanningData as err:
         errored_user = user1 if err.user == 1 else user2
-        return Response(f"Sorry, but {errored_user} has no Planning entries!", media_type="text/plain")
+        return Response(
+            f"Sorry, but {errored_user} has no {selected_status.value.lower()} entries!", media_type="text/plain"
+        )
 
     if not matching_items:
-        return Response("No planning anime in common :(", status_code=405, media_type="text/plain")
+        return Response(f"No {selected_status.value.lower()} anime in common :(", status_code=405, media_type="text/plain")
 
-    head = OPENGRAPH_HEAD.format(user1=user1, user2=user2, mutual=len(matching_items))
+    head = OPENGRAPH_HEAD.format(user1=user1, user2=user2, mutual=len(matching_items), status=selected_status.value.title())
     formatted = format_entries_as_table(matching_items)
 
     return Response(head + "\n" + formatted, media_type="text/html")

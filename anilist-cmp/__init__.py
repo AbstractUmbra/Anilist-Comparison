@@ -167,8 +167,8 @@ async def get_matches(request: Request, user1: str, user2: str, status: str = "P
     try:
         selected_status = Status[status.casefold()]
     except KeyError:
-        _statuses = "\n".join(str(item) for item in Status)
-        return Response(f"Sorry, your chosen status of {status} is not valid. Please choose from:-{_statuses}")
+        _statuses = "\n".join(item.name for item in Status)
+        return Response(f"Sorry, your chosen status of {status} is not valid. Please choose from:-\n\n{_statuses}")
 
     data = await _fetch_user_entries(user1.casefold(), user2.casefold(), status=selected_status)
 

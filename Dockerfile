@@ -51,4 +51,6 @@ RUN poetry install --only main
 
 COPY . /app/
 
+EXPOSE 8080
+
 ENTRYPOINT ["poetry", "run", "python", "-O", "main.py"]

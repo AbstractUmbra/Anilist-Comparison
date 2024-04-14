@@ -144,11 +144,12 @@ def _get_common_planning(data: AnilistResponse) -> dict[int, InnerMediaEntry]:
 def _handle_errors(errors: list[AnilistError], user1: str, user2: str) -> list[str]:
     missing_users: list[str] = []
     for error in errors:
-        if error["message"] == "User not found":
+        if error["message"] == "User not found" and error["status"] == 404:
             for location in error["locations"]:
-                if location["column"] == 2:
+                print(location, flush=True)
+                if location["line"] == 3:
                     missing_users.append(user1)
-                elif location["column"] == 17:
+                elif location["line"] == 18:
                     missing_users.append(user2)
 
     return missing_users
@@ -160,7 +161,7 @@ async def index() -> Response:
 
 
 @app.get("/{user1}/{user2}")
-async def get_matches(request: Request, user1: str, user2: str, status: str = "PLANNING") -> Response:
+async def get_matches(request: Request, user1: str, user2: str, status: str = "planning") -> Response:
     if user1.casefold() == user2.casefold():
         return Response("Haha, you're really funny.", media_type="text/plain")
 
@@ -176,7 +177,7 @@ async def get_matches(request: Request, user1: str, user2: str, status: str = "P
         errored_users = _handle_errors(errors, user1, user2)
 
         fmt = ", ".join(errored_users)
-        return Response(f"Sorry, it seems that user(s) {fmt} are not found.")
+        return Response(f"Sorry, it seems that user(s) {fmt} are not found.", status_code=404)
 
     try:
         matching_items = _get_common_planning(data)  # type: ignore # the type is resolved above.

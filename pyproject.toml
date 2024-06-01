@@ -6,11 +6,10 @@ authors = ["Alex Nørgaard <umbra@abstractumbra.dev>"]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-fastapi = "*"
+litestar = "*"
 uvicorn = "*"
 pillow = "*"
 uvloop = "*"
-aiohttp = "*"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "*"

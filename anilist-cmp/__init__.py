@@ -3,14 +3,12 @@ from __future__ import annotations
 from enum import Enum
 from typing import TYPE_CHECKING
 
-import aiohttp
-from fastapi import FastAPI, Request
-from fastapi.responses import Response
+import httpx
+from litestar import Litestar, MediaType, Response, get
+from litestar.middleware.rate_limit import RateLimitConfig
 
 if TYPE_CHECKING:
     from .types_.responses import AnilistError, AnilistErrorResponse, AnilistResponse, InnerMediaEntry, MediaEntry
-
-app = FastAPI(debug=False, title="Welcome!", version="0.0.1", openapi_url=None, redoc_url=None, docs_url=None)
 
 QUERY = """
 query ($username1: String, $username2: String, $status: MediaListStatus) {
@@ -112,11 +110,13 @@ def format_entries_as_table(entries: dict[int, InnerMediaEntry]) -> str:
 async def _fetch_user_entries(*usernames: str, status: Status) -> AnilistResponse | AnilistErrorResponse:
     username1, username2 = usernames
 
-    async with aiohttp.ClientSession() as session, session.post(
-        "https://graphql.anilist.co",
-        json={"query": QUERY, "variables": {"username1": username1, "username2": username2, "status": status.value}},
-    ) as resp:
-        return await resp.json()
+    async with httpx.AsyncClient() as session:
+        resp = await session.post(
+            "https://graphql.anilist.co",
+            json={"query": QUERY, "variables": {"username1": username1, "username2": username2, "status": status.value}},
+        )
+
+        return resp.json()
 
 
 def _restructure_entries(entries: list[MediaEntry]) -> dict[int, InnerMediaEntry]:
@@ -155,13 +155,13 @@ def _handle_errors(errors: list[AnilistError], user1: str, user2: str) -> list[s
     return missing_users
 
 
-@app.get("/")
-async def index() -> Response:
+@get("/")
+async def index() -> Response[str]:
     return Response("Did you forget to add path parameters? Like <url>/User1/User2?", media_type="text/plain")
 
 
-@app.get("/{user1}/{user2}")
-async def get_matches(request: Request, user1: str, user2: str, status: str = "planning") -> Response:
+@get("/{user1:str}/{user2:str}")
+async def get_matches(user1: str, user2: str, status: str = "planning") -> Response[str]:
     if user1.casefold() == user2.casefold():
         return Response("Haha, you're really funny.", media_type="text/plain")
 
@@ -193,4 +193,15 @@ async def get_matches(request: Request, user1: str, user2: str, status: str = "p
     head = OPENGRAPH_HEAD.format(user1=user1, user2=user2, mutual=len(matching_items), status=selected_status.value.title())
     formatted = format_entries_as_table(matching_items)
 
-    return Response(head + "\n" + formatted, media_type="text/html")
+    return Response(head + "\n" + formatted, media_type=MediaType.HTML)
+
+
+RL_CONFIG = RateLimitConfig(
+    ("second", 1),
+    rate_limit_limit_header_key="X-Ratelimit-Limit",
+    rate_limit_policy_header_key="X-Ratelimit-Policy",
+    rate_limit_remaining_header_key="X-Ratelimit-Remaining",
+    rate_limit_reset_header_key="X-Ratelimit-Reset",
+)
+
+app = Litestar(route_handlers=[index, get_matches], middleware=[RL_CONFIG.middleware])

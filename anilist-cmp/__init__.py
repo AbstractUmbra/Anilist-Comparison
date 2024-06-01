@@ -4,7 +4,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 import httpx
-from litestar import Litestar, MediaType, Response, get
+from litestar import Litestar, MediaType, Response, get, status_codes
 from litestar.middleware.rate_limit import RateLimitConfig
 
 if TYPE_CHECKING:
@@ -157,13 +157,19 @@ def _handle_errors(errors: list[AnilistError], user1: str, user2: str) -> list[s
 
 @get("/")
 async def index() -> Response[str]:
-    return Response("Did you forget to add path parameters? Like <url>/User1/User2?", media_type="text/plain")
+    return Response(
+        "Did you forget to add path parameters? Like <url>/User1/User2?",
+        media_type=MediaType.TEXT,
+        status_code=status_codes.HTTP_400_BAD_REQUEST,
+    )
 
 
 @get("/{user1:str}/{user2:str}")
 async def get_matches(user1: str, user2: str, status: str = "planning") -> Response[str]:
     if user1.casefold() == user2.casefold():
-        return Response("Haha, you're really funny.", media_type="text/plain")
+        return Response(
+            "Haha, you're really funny.", media_type=MediaType.TEXT, status_code=status_codes.HTTP_418_IM_A_TEAPOT
+        )
 
     try:
         selected_status = Status[status.casefold()]
@@ -177,23 +183,33 @@ async def get_matches(user1: str, user2: str, status: str = "planning") -> Respo
         errored_users = _handle_errors(errors, user1, user2)
 
         fmt = ", ".join(errored_users)
-        return Response(f"Sorry, it seems that user(s) {fmt} are not found.", status_code=404)
+        return Response(
+            f"Sorry, it seems that user(s) {fmt} are not found.",
+            media_type=MediaType.TEXT,
+            status_code=status_codes.HTTP_404_NOT_FOUND,
+        )
 
     try:
         matching_items = _get_common_planning(data)  # type: ignore # the type is resolved above.
     except NoPlanningData as err:
         errored_user = user1 if err.user == 1 else user2
         return Response(
-            f"Sorry, but {errored_user} has no {selected_status.value.lower()} entries!", media_type="text/plain"
+            f"Sorry, but {errored_user} has no {selected_status.value.lower()} entries!",
+            media_type=MediaType.TEXT,
+            status_code=status_codes.HTTP_412_PRECONDITION_FAILED,
         )
 
     if not matching_items:
-        return Response(f"No {selected_status.value.lower()} anime in common :(", status_code=405, media_type="text/plain")
+        return Response(
+            f"No {selected_status.value.lower()} anime in common :(",
+            media_type=MediaType.TEXT,
+            status_code=status_codes.HTTP_412_PRECONDITION_FAILED,
+        )
 
     head = OPENGRAPH_HEAD.format(user1=user1, user2=user2, mutual=len(matching_items), status=selected_status.value.title())
     formatted = format_entries_as_table(matching_items)
 
-    return Response(head + "\n" + formatted, media_type=MediaType.HTML)
+    return Response(head + "\n" + formatted, media_type=MediaType.HTML, status_code=status_codes.HTTP_200_OK)
 
 
 RL_CONFIG = RateLimitConfig(

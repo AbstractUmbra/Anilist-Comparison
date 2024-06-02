@@ -3,13 +3,15 @@ from __future__ import annotations
 from enum import Enum
 from functools import reduce
 from operator import and_, or_
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 
 import httpx
 from litestar import Litestar, MediaType, Response, get, status_codes
 from litestar.middleware.rate_limit import RateLimitConfig
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from .types_.responses import AnilistError, AnilistErrorResponse, AnilistResponse, InnerMediaEntry, MediaEntry
 
 USER_QUERY = """

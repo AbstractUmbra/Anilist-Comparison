@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from functools import reduce
-from operator import or_, and_
 from enum import Enum
+from functools import reduce
+from operator import and_, or_
 from typing import TYPE_CHECKING, Sequence
 
 import httpx
@@ -116,7 +116,6 @@ def _restructure_entries(entries: list[MediaEntry]) -> dict[int, InnerMediaEntry
 
 
 def _get_common_planning(data: AnilistResponse) -> dict[int, InnerMediaEntry]:
-
     media_entries: list[dict[int, InnerMediaEntry]] = []
 
     for index, item in enumerate(data["data"].values()):
@@ -126,7 +125,7 @@ def _get_common_planning(data: AnilistResponse) -> dict[int, InnerMediaEntry]:
         media_entries.append(_restructure_entries(item["lists"][0]["entries"]))
 
     all_anime: dict[int, InnerMediaEntry] = reduce(or_, media_entries)
-    common_anime: set[int] = reduce(and_, map(lambda d: d.keys(), media_entries))
+    common_anime: set[int] = reduce(and_, (d.keys() for d in media_entries))
 
     return {id_: all_anime[id_] for id_ in common_anime}
 
@@ -167,7 +166,7 @@ async def index() -> Response[str]:
 
 @get("/{user_list:path}")
 async def get_matches(user_list: str, exclude: list[str] | None = None, status: str = "planning") -> Response[str]:
-    users = list(set([user.casefold() for user in user_list.lstrip("/").split("/")]))
+    users = list({user.casefold() for user in user_list.lstrip("/").split("/")})
 
     if len(users) <= 1:
         return Response(
@@ -190,7 +189,7 @@ async def get_matches(user_list: str, exclude: list[str] | None = None, status: 
         _statuses = "\n".join(item.name for item in Status)
         return Response(f"Sorry, your chosen status of {status} is not valid. Please choose from:-\n\n{_statuses}")
 
-    excluded = list(set([ex.casefold() for ex in exclude or []]))
+    excluded = list({ex.casefold() for ex in exclude or []})
 
     faulty = [ex for ex in excluded if ex not in HEADINGS]
 
@@ -238,6 +237,7 @@ async def get_matches(user_list: str, exclude: list[str] | None = None, status: 
 
 RL_CONFIG = RateLimitConfig(
     ("second", 1),
+    exclude=["favicon.ico"],
     rate_limit_limit_header_key="X-Ratelimit-Limit",
     rate_limit_policy_header_key="X-Ratelimit-Policy",
     rate_limit_remaining_header_key="X-Ratelimit-Remaining",

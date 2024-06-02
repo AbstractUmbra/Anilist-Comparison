@@ -27,13 +27,8 @@ class MediaListCollection(TypedDict):
     lists: list[MediaListEntry]
 
 
-class MediaListCollectionResponse(TypedDict):
-    user1: MediaListCollection
-    user2: MediaListCollection
-
-
 class AnilistResponse(TypedDict):
-    data: MediaListCollectionResponse
+    data: dict[str, MediaListCollection]
 
 
 class AnilistErrorLocation(TypedDict):

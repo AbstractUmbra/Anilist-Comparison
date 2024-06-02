@@ -5,7 +5,7 @@ description = "A small webserver that returns the data in which you visited it."
 authors = ["Alex Nørgaard <umbra@abstractumbra.dev>"]
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.12"
 litestar = "*"
 uvicorn = "*"
 pillow = "*"
@@ -15,12 +15,9 @@ uvloop = "*"
 pre-commit = "*"
 ruff = "*"
 
-[tool.black]
-line-length = 125
-target-version = ["py311"]
-
 [tool.ruff]
 line-length = 125
+target-version = "py312"
 
 [tool.ruff.lint]
 select = [
@@ -71,6 +68,7 @@ inline-quotes = "single"
 [tool.pyright]
 venvPath = "."
 venv = ".venv/"
+pythonVersion = "3.12"
 useLibraryCodeForTypes = true
 typeCheckingMode = "strict"
 reportImportCycles = false

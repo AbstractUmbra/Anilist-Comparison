@@ -245,4 +245,4 @@ RL_CONFIG = RateLimitConfig(
 )
 
 
-app = Litestar(route_handlers=[index, get_matches], middleware=[RL_CONFIG.middleware], debug=True)
+app = Litestar(route_handlers=[index, get_matches], middleware=[RL_CONFIG.middleware])

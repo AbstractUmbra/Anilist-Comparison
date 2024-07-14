@@ -9,6 +9,8 @@ python = "^3.12"
 litestar = "*"
 uvicorn = "*"
 pillow = "*"
+
+[tool.poetry.group.speed.dependencies]
 uvloop = "*"
 
 [tool.poetry.group.dev.dependencies]

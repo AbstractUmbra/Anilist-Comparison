@@ -121,7 +121,7 @@ def _get_common_planning(data: AnilistResponse) -> dict[int, InnerMediaEntry]:
     media_entries: list[dict[int, InnerMediaEntry]] = []
 
     for index, item in enumerate(data["data"].values()):
-        if not item:
+        if not item or not item["lists"]:
             raise NoPlanningData(index)
 
         media_entries.append(_restructure_entries(item["lists"][0]["entries"]))
@@ -247,4 +247,8 @@ RL_CONFIG = RateLimitConfig(
 )
 
 
-app = Litestar(route_handlers=[index, get_matches], middleware=[RL_CONFIG.middleware])
+app = Litestar(
+    route_handlers=[index, get_matches],
+    middleware=[RL_CONFIG.middleware],
+    debug=True,
+)

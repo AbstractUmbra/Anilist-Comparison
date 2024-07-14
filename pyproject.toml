@@ -6,15 +6,9 @@ authors = ["Alex Nørgaard <umbra@abstractumbra.dev>"]
 
 [tool.poetry.dependencies]
 python = "^3.12"
-litestar = "*"
+litestar = { version = "*", extras = ["standard"] }
 uvicorn = "*"
-uvloop = { version = "*", optional = true }
-
-[tool.poetry.extras]
-speed = ["uvloop"]
-
-[tool.poetry.group.speed.dependencies]
-uvloop = "*"
+uvloop = { version = "*", markers = "sys_platform != 'win32'" }
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "*"

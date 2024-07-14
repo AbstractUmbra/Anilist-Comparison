@@ -8,6 +8,10 @@ authors = ["Alex Nørgaard <umbra@abstractumbra.dev>"]
 python = "^3.12"
 litestar = "*"
 uvicorn = "*"
+uvloop = { version = "*", optional = true }
+
+[tool.poetry.extras]
+speed = ["uvloop"]
 
 [tool.poetry.group.speed.dependencies]
 uvloop = "*"

@@ -6,7 +6,7 @@ authors = ["Alex Nørgaard <umbra@abstractumbra.dev>"]
 
 [tool.poetry.dependencies]
 python = "^3.12"
-litestar = { version = "*", extras = ["standard"] }
+litestar = { version = "*", extras = ["jinja"] }
 uvicorn = "*"
 uvloop = { version = "*", markers = "sys_platform != 'win32'" }
 

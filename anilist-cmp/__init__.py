@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import pathlib
+from collections import ChainMap
 from enum import Enum
-from functools import reduce
-from operator import and_, or_
 from typing import TYPE_CHECKING
 
 import httpx
 from litestar import Litestar, MediaType, Response, get, status_codes
+from litestar.contrib.jinja import JinjaTemplateEngine
 from litestar.middleware.rate_limit import RateLimitConfig
+from litestar.response import Template
+from litestar.template import TemplateConfig
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -38,47 +41,8 @@ query ({parameters}, $status: MediaListStatus) {{
 }}
 """
 
-OPENGRAPH_HEAD = """
-<!DOCTYPE html>
-<html prefix="og: https://ogp.me/ns#">
-<head>
-    <meta charset="UTF-8" />
-    <title>Hi</title>
-    <meta property="og:title" content="Common '{status}' anilist entries for {users}." />
-    <meta property="og:description" content="They currently have {mutual} mutual entries." />
-    <meta property="og:locale" content="en_GB" />
-    <meta property="og:type" content="website" />
-</head>
-</html>
-"""
 
-HEADINGS = ["romaji", "english", "native"]
-
-TABLE = """
-<table>
-<thead>
-<tr>
-<th>Media ID</th>
-{included}
-<th>URL</th>
-</tr>
-</thead>
-<tbody>
-{{body}}
-</tbody>
-</table>
-"""
-
-ROW = """
-<tr>
-<td>{{id}}</td>
-{included}
-<td><a href="{{siteUrl}}">Anilist</a></td>
-</tr>
-"""
-
-
-class NoPlanningData(ValueError):
+class EmptyAnimeList(ValueError):
     def __init__(self, user: int, *args: object) -> None:
         self.user = user
         super().__init__(*args)
@@ -91,13 +55,6 @@ class Status(Enum):
     dropped = "DROPPED"
     paused = "PAUSED"
     repeating = "REPEATING"
-
-
-def format_entries_as_table(entries: dict[int, InnerMediaEntry], excluded: list[str]) -> str:
-    included = "\n".join(f"<td>{{title[{h}]}}</td>" for h in HEADINGS if h not in excluded)
-    rows = [ROW.format(included=included).format_map(entry) for entry in entries.values()]
-    formatted_headings = "\n".join(f"<th>{h.title()}</th>" for h in HEADINGS if h not in excluded)
-    return TABLE.format(included=formatted_headings).format(body="\n".join(rows))
 
 
 async def _fetch_user_entries(*usernames: str, status: Status) -> AnilistResponse | AnilistErrorResponse:
@@ -117,17 +74,17 @@ def _restructure_entries(entries: list[MediaEntry]) -> dict[int, InnerMediaEntry
     return {entry["media"]["id"]: entry["media"] for entry in entries}
 
 
-def _get_common_planning(data: AnilistResponse) -> dict[int, InnerMediaEntry]:
+def _get_common_anime(data: AnilistResponse) -> dict[int, InnerMediaEntry]:
     media_entries: list[dict[int, InnerMediaEntry]] = []
 
     for index, item in enumerate(data["data"].values()):
         if not item or not item["lists"]:
-            raise NoPlanningData(index)
+            raise EmptyAnimeList(index)
 
         media_entries.append(_restructure_entries(item["lists"][0]["entries"]))
 
-    all_anime: dict[int, InnerMediaEntry] = reduce(or_, media_entries)
-    common_anime: set[int] = reduce(and_, (d.keys() for d in media_entries))
+    all_anime = ChainMap(*media_entries)
+    common_anime = set(all_anime).intersection(*media_entries)
 
     return {id_: all_anime[id_] for id_ in common_anime}
 
@@ -167,8 +124,9 @@ async def index() -> Response[str]:
 
 
 @get("/{user_list:path}")
-async def get_matches(user_list: str, exclude: list[str] | None = None, status: str = "planning") -> Response[str]:
-    users = list({user.casefold() for user in user_list.lstrip("/").split("/")})
+async def get_matches(user_list: str, status: str = "planning") -> Response[str] | Template:
+    usernames = [username for username in user_list.split('/') if username]
+    users = list({user.lower() for user in usernames})
 
     if len(users) <= 1:
         return Response(
@@ -186,21 +144,10 @@ async def get_matches(user_list: str, exclude: list[str] | None = None, status: 
             )
 
     try:
-        selected_status = Status[status.casefold()]
+        selected_status = Status[status.lower()]
     except KeyError:
         _statuses = "\n".join(item.name for item in Status)
         return Response(f"Sorry, your chosen status of {status} is not valid. Please choose from:-\n\n{_statuses}")
-
-    excluded = list({ex.casefold() for ex in exclude or []})
-
-    faulty = [ex for ex in excluded if ex not in HEADINGS]
-
-    if faulty:
-        return Response(
-            f"Unknown excluded headings: {_human_join(faulty)}. Supported: {_human_join(HEADINGS)}",
-            media_type=MediaType.TEXT,
-            status_code=status_codes.HTTP_400_BAD_REQUEST,
-        )
 
     data = await _fetch_user_entries(*users, status=selected_status)
 
@@ -215,26 +162,25 @@ async def get_matches(user_list: str, exclude: list[str] | None = None, status: 
         )
 
     try:
-        matching_items = _get_common_planning(data)  # type: ignore # the type is resolved above.
-    except NoPlanningData as err:
+        matching_items = _get_common_anime(data)  # type: ignore # the type is resolved above.
+    except EmptyAnimeList as err:
         errored_user = users[err.user]
         return Response(
             f"Sorry, but {errored_user} has no {selected_status.value.lower()} entries!",
             media_type=MediaType.TEXT,
-            status_code=status_codes.HTTP_412_PRECONDITION_FAILED,
+            status_code=status_codes.HTTP_404_NOT_FOUND,
         )
 
     if not matching_items:
         return Response(
             f"No {selected_status.value.lower()} anime in common :(",
             media_type=MediaType.TEXT,
-            status_code=status_codes.HTTP_412_PRECONDITION_FAILED,
+            status_code=status_codes.HTTP_404_NOT_FOUND,
         )
 
-    head = OPENGRAPH_HEAD.format(users=_human_join(users), mutual=len(matching_items), status=selected_status.value.title())
-    formatted = format_entries_as_table(matching_items, excluded=excluded)
-
-    return Response(head + "\n" + formatted, media_type=MediaType.HTML, status_code=status_codes.HTTP_200_OK)
+    context = dict(entries=sorted(matching_items.values(), key=lambda entry: entry['id']), status=selected_status,
+                   description=f'Common anime for {_human_join(usernames)}')
+    return Template(template_name='page.html', context=context)
 
 
 RL_CONFIG = RateLimitConfig(
@@ -246,9 +192,9 @@ RL_CONFIG = RateLimitConfig(
     rate_limit_reset_header_key="X-Ratelimit-Reset",
 )
 
-
+template_directory = pathlib.Path(__file__).parent / 'templates'
 app = Litestar(
     route_handlers=[index, get_matches],
     middleware=[RL_CONFIG.middleware],
-    debug=True,
+    template_config=TemplateConfig(directory=template_directory, engine=JinjaTemplateEngine),
 )

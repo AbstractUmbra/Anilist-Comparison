@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>Anilist common anime tool</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="{{ description }}">
+</head>
+<body>
+<table>
+    <button data-column="romaji">Toggle Romaji</button>
+    <button data-column="english">Toggle English</button>
+    <button data-column="native">Toggle Native</button>
+    <thead>
+    <tr>
+        <th>Media ID</th>
+        <th>Romaji</th>
+        <th>English</th>
+        <th>Native</th>
+    </tr>
+    </thead>
+    <colgroup>
+        <col>
+        <col id="romaji">
+        <col id="english">
+        <col id="native">
+    </colgroup>
+    <tbody>
+    {% for entry in entries %}
+        <tr>
+            <td>{{ entry['id'] }}</td>
+            <td><a href="{{ entry['siteUrl'] }}">{{ entry['title']['romaji'] }}</a></td>
+            <td><a href="{{ entry['siteUrl'] }}">{{ entry['title']['english'] }}</a></td>
+            <td><a href="{{ entry['siteUrl'] }}">{{ entry['title']['native'] }}</a></td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</body>
+<script>
+    const toggles = document.querySelectorAll('button');
+
+    const toggle_setting = (setting) => {
+        if (localStorage.getItem(setting)) {
+            localStorage.removeItem(setting);
+            document.getElementById(setting).style.removeProperty('visibility');
+        } else {
+            localStorage.setItem(setting, '1')
+            document.getElementById(setting).style.setProperty('visibility', 'collapse');
+        }
+    }
+
+    toggles.forEach(button => {
+        button.addEventListener('click', () => toggle_setting(button.dataset.column))
+    })
+
+    for (const column of ['romaji', 'english', 'native'])
+        if (localStorage.getItem(column))
+            document.getElementById(column).style.setProperty('visibility', 'collapse');
+</script>
+</html>

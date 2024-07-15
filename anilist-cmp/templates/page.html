@@ -9,6 +9,9 @@
 </head>
 <body>
 <table>
+    <button data-column="romaji">Toggle Romaji</button>
+    <button data-column="english">Toggle English</button>
+    <button data-column="native">Toggle Native</button>
     <thead>
     <tr>
         <th>Media ID</th>
@@ -19,9 +22,9 @@
     </thead>
     <colgroup>
         <col>
-        <col>
-        <col>
-        <col>
+        <col id="romaji">
+        <col id="english">
+        <col id="native">
     </colgroup>
     <tbody>
     {% for entry in entries %}
@@ -35,5 +38,25 @@
     </tbody>
 </table>
 </body>
+<script>
+    const toggles = document.querySelectorAll('button');
 
+    const toggle_setting = (setting) => {
+        if (localStorage.getItem(setting)) {
+            localStorage.removeItem(setting);
+            document.getElementById(setting).style.removeProperty('visibility');
+        } else {
+            localStorage.setItem(setting, '1')
+            document.getElementById(setting).style.setProperty('visibility', 'collapse');
+        }
+    }
+
+    toggles.forEach(button => {
+        button.addEventListener('click', () => toggle_setting(button.dataset.column))
+    })
+
+    for (const column of ['romaji', 'english', 'native'])
+        if (localStorage.getItem(column))
+            document.getElementById(column).style.setProperty('visibility', 'collapse');
+</script>
 </html>

@@ -198,5 +198,4 @@ app = Litestar(
     route_handlers=[index, get_matches],
     middleware=[RL_CONFIG.middleware],
     template_config=TemplateConfig(directory=template_directory, engine=JinjaTemplateEngine),
-    debug=True,
 )

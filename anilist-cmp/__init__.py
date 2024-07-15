@@ -144,7 +144,7 @@ async def get_matches(user_list: str, status: str = "planning") -> Response[str]
             )
 
     try:
-        selected_status = Status[status.casefold()]
+        selected_status = Status[status.lower()]
     except KeyError:
         _statuses = "\n".join(item.name for item in Status)
         return Response(f"Sorry, your chosen status of {status} is not valid. Please choose from:-\n\n{_statuses}")

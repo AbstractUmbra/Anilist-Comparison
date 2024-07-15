@@ -169,14 +169,14 @@ async def get_matches(user_list: str, status: str = "planning") -> Response[str]
         return Response(
             f"Sorry, but {errored_user} has no {selected_status.value.lower()} entries!",
             media_type=MediaType.TEXT,
-            status_code=status_codes.HTTP_412_PRECONDITION_FAILED,
+            status_code=status_codes.HTTP_404_NOT_FOUND,
         )
 
     if not matching_items:
         return Response(
             f"No {selected_status.value.lower()} anime in common :(",
             media_type=MediaType.TEXT,
-            status_code=status_codes.HTTP_412_PRECONDITION_FAILED,
+            status_code=status_codes.HTTP_404_NOT_FOUND,
         )
 
     context = dict(entries=sorted(matching_items.values(), key=lambda entry: entry['id']), status=selected_status,

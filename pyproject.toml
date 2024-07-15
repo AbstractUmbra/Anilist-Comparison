@@ -10,7 +10,6 @@ litestar = { version = "*", extras = ["standard"] }
 uvicorn = "*"
 
 [tool.poetry.group.dev.dependencies]
-pre-commit = "*"
 ruff = "*"
 
 [tool.ruff]

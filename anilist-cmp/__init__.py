@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import pathlib
+from collections import ChainMap
 from enum import Enum
-from functools import reduce
-from operator import and_, or_
 from typing import TYPE_CHECKING
 
 import httpx
@@ -43,7 +42,7 @@ query ({parameters}, $status: MediaListStatus) {{
 """
 
 
-class NoPlanningData(ValueError):
+class EmptyAnimeList(ValueError):
     def __init__(self, user: int, *args: object) -> None:
         self.user = user
         super().__init__(*args)
@@ -75,17 +74,17 @@ def _restructure_entries(entries: list[MediaEntry]) -> dict[int, InnerMediaEntry
     return {entry["media"]["id"]: entry["media"] for entry in entries}
 
 
-def _get_common_planning(data: AnilistResponse) -> dict[int, InnerMediaEntry]:
+def _get_common_anime(data: AnilistResponse) -> dict[int, InnerMediaEntry]:
     media_entries: list[dict[int, InnerMediaEntry]] = []
 
     for index, item in enumerate(data["data"].values()):
         if not item or not item["lists"]:
-            raise NoPlanningData(index)
+            raise EmptyAnimeList(index)
 
         media_entries.append(_restructure_entries(item["lists"][0]["entries"]))
 
-    all_anime: dict[int, InnerMediaEntry] = reduce(or_, media_entries)
-    common_anime: set[int] = reduce(and_, (d.keys() for d in media_entries))
+    all_anime = ChainMap(*media_entries)
+    common_anime = set(all_anime).intersection(*media_entries)
 
     return {id_: all_anime[id_] for id_ in common_anime}
 
@@ -163,8 +162,8 @@ async def get_matches(user_list: str, status: str = "planning") -> Response[str]
         )
 
     try:
-        matching_items = _get_common_planning(data)  # type: ignore # the type is resolved above.
-    except NoPlanningData as err:
+        matching_items = _get_common_anime(data)  # type: ignore # the type is resolved above.
+    except EmptyAnimeList as err:
         errored_user = users[err.user]
         return Response(
             f"Sorry, but {errored_user} has no {selected_status.value.lower()} entries!",

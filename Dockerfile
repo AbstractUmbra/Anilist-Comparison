@@ -47,7 +47,7 @@ WORKDIR /app
 COPY poetry.lock pyproject.toml ./
 
 # install runtime deps - uses $POETRY_VIRTUALENVS_IN_PROJECT internally
-RUN poetry install --only main
+RUN poetry install --only main --no-root
 
 COPY . /app/
 

@@ -26,7 +26,9 @@ ENV PYTHONUNBUFFERED=1 \
     # paths
     # this is where our requirements + virtual environment will live
     PYSETUP_PATH="/opt/pysetup" \
-    VENV_PATH="/opt/pysetup/.venv"
+    VENV_PATH="/opt/pysetup/.venv" \
+    # set non-interactive in the event tzdata decides to update
+    DEBIAN_FRONTEND=noninteractive
 
 ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 
@@ -39,7 +41,8 @@ RUN apt-get update -y \
     build-essential \
     libcurl4-gnutls-dev \
     gnutls-dev \
-    libmagic-dev
+    libmagic-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN curl -sSL https://install.python-poetry.org | python -
 # copy project requirement files here to ensure they will be cached.

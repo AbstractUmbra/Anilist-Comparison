@@ -1,6 +1,12 @@
 services:
   anilistcmp:
     image: ghcr.io/abstractumbra/anilist-comparison:latest
-    ports:
-      - "8080:8080"
     container_name: "anilistcmp"
+    restart: "unless-stopped"
+    networks:
+      main:
+
+networks:
+  main:
+    external:
+      true

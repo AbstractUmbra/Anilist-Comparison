@@ -171,9 +171,7 @@ async def index() -> Response[str]:
 async def get_matches_headless(data: Annotated[QueryData, Body(title="Query user's anilists")]) -> Response[dict[str, Any]]:
     try:
         _parse_users(data.users)
-    except TooLittleUsers as err:
-        return Response({"error": err.message}, media_type=MediaType.JSON, status_code=err.status_code)
-    except InvalidAniListUsername as err:
+    except APIException as err:
         return Response({"error": err.message}, media_type=MediaType.JSON, status_code=err.status_code)
 
     try:
@@ -233,9 +231,7 @@ async def get_matches(user_list: str, status: str = "planning") -> Response[str]
 
     try:
         _parse_users(users)
-    except TooLittleUsers as err:
-        return Response(err.to_text(), media_type=MediaType.TEXT, status_code=err.status_code)
-    except InvalidAniListUsername as err:
+    except APIException as err:
         return Response(err.to_text(), media_type=MediaType.TEXT, status_code=err.status_code)
 
     try:

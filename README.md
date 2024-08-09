@@ -20,6 +20,17 @@ paused
 repeating
 ```
 
+### JSON API
+
+This project now exposes a headless JSON API on request. This is available on the following:
+```
+POST https://anilist.abstractumbra.dev/
+{
+    "users": ["User1", "User2"], # supports N many users
+    "status": "planning" # defaults to 'planning'
+}
+```
+
 ## Running your own
 
 The provided docker-compose file should work on its own.

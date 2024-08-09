@@ -48,7 +48,7 @@ query ({parameters}, $status: MediaListStatus) {{
 @dataclass
 class QueryData:
     users: list[str]
-    status: str
+    status: str = "planning"
 
 
 class EmptyAnimeList(ValueError):

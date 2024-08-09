@@ -2,18 +2,21 @@ from __future__ import annotations
 
 import pathlib
 from collections import ChainMap
+from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import httpx
-from litestar import Litestar, MediaType, Response, get, status_codes
+from litestar import Litestar, MediaType, Response, get, post, status_codes
 from litestar.contrib.jinja import JinjaTemplateEngine
 from litestar.middleware.rate_limit import RateLimitConfig
+from litestar.params import Body  # noqa: TCH002 # required at runtime
 from litestar.response import Template
 from litestar.template import TemplateConfig
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterable, Sequence
+    from typing import Annotated
 
     from .types_.responses import AnilistError, AnilistErrorResponse, AnilistResponse, InnerMediaEntry, MediaEntry
 
@@ -42,6 +45,12 @@ query ({parameters}, $status: MediaListStatus) {{
 """
 
 
+@dataclass
+class QueryData:
+    users: list[str]
+    status: str
+
+
 class EmptyAnimeList(ValueError):
     def __init__(self, user: int, *args: object) -> None:
         self.user = user
@@ -55,6 +64,41 @@ class Status(Enum):
     dropped = "DROPPED"
     paused = "PAUSED"
     repeating = "REPEATING"
+
+
+class APIException(Exception):
+    def __init__(self, *, status_code: int, message: str) -> None:
+        self.status_code = status_code
+        self.message = message
+        super().__init__(self.message)
+
+    def to_json(self) -> dict[str, str]:
+        return {"error": self.message}
+
+    def to_text(self) -> str:
+        return self.message
+
+
+class TooLittleUsers(APIException):
+    def __init__(self, users: Iterable[str], /) -> None:
+        self.users = users
+        super().__init__(status_code=400, message="You must provide at least 2 unique users for comparison.")
+
+
+class InvalidAniListUsername(APIException):
+    def __init__(self, user: str) -> None:
+        self.user = user
+        super().__init__(status_code=400, message=f"User {user!r} is not a valid AniList username.")
+
+
+def _parse_users(users: Iterable[str]) -> None:
+    cleaned = set(users)
+    if len(cleaned) < 2:
+        raise TooLittleUsers(cleaned)
+
+    for user in users:
+        if not user.isalnum() or len(user) > 20:
+            raise InvalidAniListUsername(user)
 
 
 async def _fetch_user_entries(*usernames: str, status: Status) -> AnilistResponse | AnilistErrorResponse:
@@ -123,25 +167,76 @@ async def index() -> Response[str]:
     )
 
 
-@get("/{user_list:path}")
-async def get_matches(user_list: str, status: str = "planning") -> Response[str] | Template:
-    usernames = [username for username in user_list.split('/') if username]
-    users = list({user.lower() for user in usernames})
+@post("/")
+async def get_matches_headless(data: Annotated[QueryData, Body(title="Query user's anilists")]) -> Response[dict[str, Any]]:
+    try:
+        _parse_users(data.users)
+    except TooLittleUsers as err:
+        return Response({"error": err.message}, media_type=MediaType.JSON, status_code=err.status_code)
+    except InvalidAniListUsername as err:
+        return Response({"error": err.message}, media_type=MediaType.JSON, status_code=err.status_code)
 
-    if len(users) <= 1:
+    try:
+        selected_status = Status[data.status.lower()]
+    except KeyError:
         return Response(
-            f"Only {len(users)} user(s) provided. You must provide at least two, for example: <url>/user1/user2/etc...",
-            media_type=MediaType.TEXT,
-            status_code=status_codes.HTTP_400_BAD_REQUEST,
+            {"error": "Invalid status provided: {data.status!r}", "accepted_statuses": [status.name for status in Status]},
+            media_type=MediaType.JSON,
+            status_code=400,
         )
 
-    for user in users:
-        if not user.isalnum() or len(user) > 20:
-            return Response(
-                f"User {user} is not a valid AniList username.",
-                media_type=MediaType.TEXT,
-                status_code=status_codes.HTTP_400_BAD_REQUEST,
-            )
+    anilist_data = await _fetch_user_entries(*data.users, status=selected_status)
+
+    if errors := anilist_data.get("errors"):
+        errored_users = _handle_errors(errors, *data.users)
+        return Response(
+            {"error": "Some user(s) were not found in AniList.", "missing_users": errored_users},
+            media_type=MediaType.JSON,
+            status_code=status_codes.HTTP_404_NOT_FOUND,
+        )
+
+    try:
+        matching_items = _get_common_anime(anilist_data)  # type: ignore # the type is resolved above.
+    except EmptyAnimeList as err:
+        errored_user = data.users[err.user]
+        return Response(
+            {
+                "error": "A user does not have any entries with the selected status",
+                "user": errored_user,
+                "status": selected_status.value.lower(),
+            },
+            media_type=MediaType.JSON,
+            status_code=status_codes.HTTP_404_NOT_FOUND,
+        )
+
+    if not matching_items:
+        return Response(
+            {
+                "error": "The provided users have no commonality with the provided status",
+                "status": selected_status.value.lower(),
+            },
+            media_type=MediaType.JSON,
+            status_code=status_codes.HTTP_404_NOT_FOUND,
+        )
+
+    context = {
+        "entries": sorted(matching_items.values(), key=lambda entry: entry["id"]),
+        "status": selected_status,
+    }
+    return Response(context, media_type=MediaType.JSON, status_code=status_codes.HTTP_200_OK)
+
+
+@get("/{user_list:path}")
+async def get_matches(user_list: str, status: str = "planning") -> Response[str] | Template:
+    usernames = [username for username in user_list.split("/") if username]
+    users = list({user.lower() for user in usernames})
+
+    try:
+        _parse_users(users)
+    except TooLittleUsers as err:
+        return Response(err.to_text(), media_type=MediaType.TEXT, status_code=err.status_code)
+    except InvalidAniListUsername as err:
+        return Response(err.to_text(), media_type=MediaType.TEXT, status_code=err.status_code)
 
     try:
         selected_status = Status[status.lower()]
@@ -178,13 +273,16 @@ async def get_matches(user_list: str, status: str = "planning") -> Response[str]
             status_code=status_codes.HTTP_404_NOT_FOUND,
         )
 
-    context = dict(entries=sorted(matching_items.values(), key=lambda entry: entry['id']), status=selected_status,
-                   description=f'Common anime for {_human_join(usernames)}')
-    return Template(template_name='page.html', context=context)
+    context = {
+        "entries": sorted(matching_items.values(), key=lambda entry: entry["id"]),
+        "status": selected_status,
+        "description": f"Common anime for {_human_join(usernames)}",
+    }
+    return Template(template_name="page.html", context=context)
 
 
 RL_CONFIG = RateLimitConfig(
-    ("second", 1),
+    ("minute", 5),
     exclude=["favicon.ico"],
     rate_limit_limit_header_key="X-Ratelimit-Limit",
     rate_limit_policy_header_key="X-Ratelimit-Policy",
@@ -192,9 +290,11 @@ RL_CONFIG = RateLimitConfig(
     rate_limit_reset_header_key="X-Ratelimit-Reset",
 )
 
-template_directory = pathlib.Path(__file__).parent / 'templates'
+template_directory = pathlib.Path(__file__).parent / "templates"
 app = Litestar(
-    route_handlers=[index, get_matches],
+    route_handlers=[index, get_matches, get_matches_headless],
     middleware=[RL_CONFIG.middleware],
     template_config=TemplateConfig(directory=template_directory, engine=JinjaTemplateEngine),
+    include_in_schema=False,
+    openapi_config=None,
 )

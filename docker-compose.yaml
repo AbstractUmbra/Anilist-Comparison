@@ -3,10 +3,3 @@ services:
     image: ghcr.io/abstractumbra/anilist-comparison:latest
     container_name: "anilistcmp"
     restart: "unless-stopped"
-    networks:
-      main:
-
-networks:
-  main:
-    external:
-      true

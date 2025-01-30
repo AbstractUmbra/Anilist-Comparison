@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import operator
 import pathlib
 from collections import ChainMap
 from dataclasses import dataclass
@@ -10,7 +11,7 @@ import httpx
 from litestar import Litestar, MediaType, Response, get, post, status_codes
 from litestar.contrib.jinja import JinjaTemplateEngine
 from litestar.middleware.rate_limit import RateLimitConfig
-from litestar.params import Body  # noqa: TCH002 # required at runtime
+from litestar.params import Body  # required at runtime
 from litestar.response import Template
 from litestar.template import TemplateConfig
 
@@ -159,7 +160,7 @@ def _human_join(seq: Sequence[str], /, *, delimiter: str = ", ", final: str = "a
 
 
 @get("/")
-async def index() -> Response[str]:
+async def index() -> Response[str]:  # noqa: RUF029 # required for litestar callbacks
     return Response(
         "Did you forget to add path parameters? Like <url>/User1/User2?",
         media_type=MediaType.TEXT,
@@ -194,7 +195,7 @@ async def get_matches_headless(data: Annotated[QueryData, Body(title="Query user
         )
 
     try:
-        matching_items = _get_common_anime(anilist_data)  # type: ignore # the type is resolved above.
+        matching_items = _get_common_anime(anilist_data)  # pyright: ignore[reportArgumentType] # the type is resolved above.
     except EmptyAnimeList as err:
         errored_user = data.users[err.user]
         return Response(
@@ -218,7 +219,7 @@ async def get_matches_headless(data: Annotated[QueryData, Body(title="Query user
         )
 
     context = {
-        "entries": sorted(matching_items.values(), key=lambda entry: entry["id"]),
+        "entries": sorted(matching_items.values(), key=operator.itemgetter("id")),
         "status": selected_status,
     }
     return Response(context, media_type=MediaType.JSON, status_code=status_codes.HTTP_200_OK)
@@ -237,8 +238,8 @@ async def get_matches(user_list: str, status: str = "planning") -> Response[str]
     try:
         selected_status = Status[status.lower()]
     except KeyError:
-        _statuses = "\n".join(item.name for item in Status)
-        return Response(f"Sorry, your chosen status of {status} is not valid. Please choose from:-\n\n{_statuses}")
+        statuses_ = "\n".join(item.name for item in Status)
+        return Response(f"Sorry, your chosen status of {status} is not valid. Please choose from:-\n\n{statuses_}")
 
     data = await _fetch_user_entries(*users, status=selected_status)
 
@@ -253,7 +254,7 @@ async def get_matches(user_list: str, status: str = "planning") -> Response[str]
         )
 
     try:
-        matching_items = _get_common_anime(data)  # type: ignore # the type is resolved above.
+        matching_items = _get_common_anime(data)  # pyright: ignore[reportArgumentType] # the type is resolved above.
     except EmptyAnimeList as err:
         errored_user = users[err.user]
         return Response(
@@ -270,7 +271,7 @@ async def get_matches(user_list: str, status: str = "planning") -> Response[str]
         )
 
     context = {
-        "entries": sorted(matching_items.values(), key=lambda entry: entry["id"]),
+        "entries": sorted(matching_items.values(), key=operator.itemgetter("id")),
         "status": selected_status,
         "description": f"Common anime for {_human_join(usernames)}",
     }

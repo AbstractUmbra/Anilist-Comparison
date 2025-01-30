@@ -1,0 +1,12 @@
+services:
+  anilistcmp:
+    image: !reset
+    build:
+      context: .
+      dockerfile: Dockerfile
+#     networks:
+#       main:
+
+# networks:
+#   main:
+#     external: true

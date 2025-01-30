@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal, TypedDict
+from typing import TypedDict
 
 
 class LocalizedTitle(TypedDict):
@@ -43,8 +43,8 @@ class AnilistError(TypedDict):
 
 
 class UserEntryError(TypedDict):
-    user1: Literal[None]
-    user2: Literal[None]
+    user1: None
+    user2: None
 
 
 class AnilistErrorResponse(TypedDict):
